@@ -452,6 +452,51 @@ static unsigned int ray_color(const point3 e, double t,
     return 1;
 }
 
+#ifdef THREAD
+/* @param background_color this is not ambient light */
+void *raytracing(void *thread_data)
+{
+    THREAD_DATA *input = (THREAD_DATA *) thread_data;
+    point3 u, v, w, d;
+    color object_color = { 0.0, 0.0, 0.0 };
+
+    /* calculate u, v, w */
+    calculateBasisVectors(u, v, w, input->view);
+
+    idx_stack stk;
+
+    int factor = sqrt(SAMPLES);
+    for (int j = input->tid; j < input->height; j+=THREAD_NUM) {
+        for (int i = 0; i < input->width; i++) {
+            double r = 0, g = 0, b = 0;
+            /* MSAA */
+            for (int s = 0; s < SAMPLES; s++) {
+                idx_stack_init(&stk);
+                rayConstruction(d, u, v, w,
+                                i * factor + s / factor,
+                                j * factor + s % factor,
+                                input->view,
+                                input->width * factor, input->height * factor);
+                if (ray_color(input->view->vrp, 0.0, d, &stk, input->rectangulars,
+			    input->spheres, input->lights, object_color,
+			    MAX_REFLECTION_BOUNCES)) {
+                    r += object_color[0];
+                    g += object_color[1];
+                    b += object_color[2];
+                } else {
+                    r += input->background_color[0];
+                    g += input->background_color[1];
+                    b += input->background_color[2];
+                }
+                input->pixels[((i + (j * input->width)) * 3) + 0] = r * 255 / SAMPLES;
+                input->pixels[((i + (j * input->width)) * 3) + 1] = g * 255 / SAMPLES;
+                input->pixels[((i + (j * input->width)) * 3) + 2] = b * 255 / SAMPLES;
+            }
+        }
+    }
+    pthread_exit(NULL);
+}
+#else
 /* @param background_color this is not ambient light */
 void raytracing(uint8_t *pixels, color background_color,
                 rectangular_node rectangulars, sphere_node spheres,
@@ -496,3 +541,4 @@ void raytracing(uint8_t *pixels, color background_color,
         }
     }
 }
+#endif /* THREAD */

@@ -14,6 +14,9 @@ CFLAGS += $(PROF_FLAGS)
 LDFLAGS += $(PROF_FLAGS) 
 endif
 
+CFLAGS += -DTHREAD
+LDFLAGS += -lpthread
+
 OBJS := \
 	objects.o \
 	raytracing.o \
